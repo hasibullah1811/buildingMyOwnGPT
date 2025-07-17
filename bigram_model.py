@@ -11,7 +11,7 @@ learning_rate = 1e-2
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
 n_embd = 32 # size of the embedding vector for each token
-max_seq_len = 1024
+max_seq_len = 1024 # increases the possible sequence length for positional embeddings
 # ------------
 
 torch.manual_seed(1337)
@@ -59,6 +59,28 @@ def estimate_loss():
     model.train()
     return out
 
+class Head(nn.Module):
+    "Single head of self-attention"
+    def __init__(self, head_size):
+        super().__init__()
+        self.key = nn.Linear(n_embd, head_size, bias=False)
+        self.query = nn.Linear(n_embed, head_size, bias = False)
+        self.value = nn.Linear(n_embed, head_size, bias=False)
+        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
+
+    def forward(self, x):
+        B, T, C = x.shape
+        k = self.key(x)
+        q = self.query(x)
+        v = self.value(x)
+
+        wei = q @ k.transpose(-2,-1) * C **-0.5
+        wei = wei.masked_fill(self.tril[:T, :T] == 0 , float('-inf'))
+        wei = F.softmax(wei, dim=1)
+        out = wei @ v
+        return out
+
+
 # super simple bigram model
 class BigramLanguageModel(nn.Module):
 
@@ -70,6 +92,7 @@ class BigramLanguageModel(nn.Module):
         self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
+        # assert T <= max_seq_len, f"Sequence length {T} exceeds max positional embedding size {max_seq_len}"
         B, T = idx.shape
 
         # idx and targets are both (B,T) tensor of integers
