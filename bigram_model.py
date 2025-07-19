@@ -130,7 +130,7 @@ class BigramLanguageModel(nn.Module):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
             #crop idx to the last block_size tokens
-            idx_cond = idx[: -block_size:]
+            idx_cond = idx[:, -block_size:]
             # get the predictions
             logits, loss = self(idx_cond)
             # focus only on the last time step
@@ -139,6 +139,8 @@ class BigramLanguageModel(nn.Module):
             probs = F.softmax(logits, dim=-1) # (B, C)
             # sample from the distribution
             idx_next = torch.multinomial(probs, num_samples=1) # (B, 1)
+            print("idx shape:", idx.shape)
+            print("idx_next shape:", idx_next.shape)
             # append sampled index to the running sequence
             idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
         return idx
