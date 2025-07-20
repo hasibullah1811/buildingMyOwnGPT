@@ -3,14 +3,17 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 # hyperparameters
-batch_size = 32 # how many independent sequences will we process in parallel?
-block_size = 8 # what is the maximum context length for predictions?
+batch_size = 64 # how many independent sequences will we process in parallel?
+block_size = 256 # what is the maximum context length for predictions?
 max_iters = 5000
 eval_interval = 500
-learning_rate = 1e-3
+learning_rate = 3e-4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-n_embd = 32 # size of the embedding vector for each token
+n_embd = 384 # size of the embedding vector for each token 
+n_head = 6 #(384/6) = 64
+n_layer = 6
+dropout = 0.2
 max_seq_len = 1024 # increases the possible sequence length for positional embeddings
 # ------------
 
@@ -68,15 +71,25 @@ class SingleHead(nn.Module):
         self.value = nn.Linear(n_embd, head_size, bias=False)
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
 
+        # DROPOUT
+        self.dropout = nn.Dropout(dropout)
+
+
     def forward(self, x):
+        '''
+        Input of size (batch, time-step, channels)
+        Output of size (batch, time-step, head size)
+        '''
         B, T, C = x.shape
         k = self.key(x)
         q = self.query(x)
         v = self.value(x)
 
-        wei = q @ k.transpose(-2,-1) * C **-0.5
+        wei = q @ k.transpose(-2,-1) * k.shape[-1]**-0.5
         wei = wei.masked_fill(self.tril[:T, :T] == 0 , float('-inf'))
         wei = F.softmax(wei, dim=-1)
+        wei = self.dropout(wei)
+
         out = wei @ v
         return out
     
@@ -86,9 +99,15 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, num_heads, head_size):
         super().__init__()
         self.heads = nn.ModuleList([SingleHead(head_size) for _ in range(num_heads)])
+        self.projection = nn.Linear(head_size * num_heads, n_embd)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        return torch.cat([h(x) for h in self.heads], dim = -1)
+        out = torch.cat([h(x) for h in self.heads], dim = -1)
+        out = self.dropout(self.projection(out))
+        return out
+    
+    
 
 
 # super simple bigram model
