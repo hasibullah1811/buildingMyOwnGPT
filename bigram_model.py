@@ -107,7 +107,22 @@ class MultiHeadAttention(nn.Module):
         out = self.dropout(self.projection(out))
         return out
     
+
+class FeedForward(nn.Module):
+    # Linear layer followed by non-linearity
+
+    def __init__(self, n_embd):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(n_embd, 4 * n_embd)
+            nn.Relu(),
+            nn.Linear(4 * n_embd, n_embd),
+            nn.dropout(dropout)
+        )
+    def forward(self, x):
+        return self.net(x)
     
+
 
 
 # super simple bigram model
