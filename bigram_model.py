@@ -148,10 +148,21 @@ class BigramLanguageModel(nn.Module):
         super().__init__()
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
-        self.position_embedding_table = nn.Embedding(max_seq_len, n_embd)
-        # self.sa_head = SingleHead(n_embd)
-        self.mu_head = MultiHeadAttention(4,n_embd//4) # 4 heads of 8 Dimensional self attention
+        self.position_embedding_table = nn.Embedding(block_size, n_embd)
+        self.blocks = nn.Sequential(*[Block(n_embd, n_head=n_head) for _ in range(n_layer)])
+        self.ln_f = nn.LayerNorm(n_embd) # Final layer norm
+        # self.mu_head = MultiHeadAttention(4,n_embd//4) # 4 heads of 8 Dimensional self attention
         self.lm_head = nn.Linear(n_embd, vocab_size)
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean = 0.0, std = 0.02)
+            if module.bias is not None:
+                torch.nn.init.zeroes_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean = 0.0, std=0.02)
 
     def forward(self, idx, targets=None):
         # assert T <= max_seq_len, f"Sequence length {T} exceeds max positional embedding size {max_seq_len}"
@@ -161,8 +172,10 @@ class BigramLanguageModel(nn.Module):
         tok_embd = self.token_embedding_table(idx) # (B,T,C)
         pos_embd = self.position_embedding_table(torch.arange(T, device=device))
         x = tok_embd + pos_embd # (B,T,C)
-        # x = self.sa_head(x)
-        x = self.mu_head(x)
+        x = self.blocks(x)
+        x = self.ln_f(x)
+        # logits = self.lm_head(x)
+        # x = self.mu_head(x)
 
         logits = self.lm_head(x) # (B,T,vocab_size)
 
@@ -197,6 +210,8 @@ class BigramLanguageModel(nn.Module):
 
 model = BigramLanguageModel()
 m = model.to(device)
+print(sum(p.numel() for p in m.parameters())/1e6, 'M parameters')
+
 
 
 
