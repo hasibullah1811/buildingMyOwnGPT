@@ -115,9 +115,9 @@ class FeedForward(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(n_embd, 4 * n_embd),
-            nn.Relu(),
+            nn.ReLU(),
             nn.Linear(4 * n_embd, n_embd),
-            nn.dropout(dropout)
+            nn.Dropout(dropout)
         )
     def forward(self, x):
         return self.net(x)
@@ -160,7 +160,7 @@ class BigramLanguageModel(nn.Module):
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean = 0.0, std = 0.02)
             if module.bias is not None:
-                torch.nn.init.zeroes_(module.bias)
+                torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean = 0.0, std=0.02)
 
